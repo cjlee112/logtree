@@ -1,6 +1,7 @@
 import random
 from math import exp, log
 from scipy import stats
+import time
 
 def mutate(s, d, a='ATGC', h = .75):
     'mutate sequence s according the specified JC distance d'
@@ -49,6 +50,13 @@ def random_distances(d, n):
     d2 = random.random() * d * 2. / n
     return [(d1, random_distances(d - d1, n - 1)),
             (d2, random_distances(d - d2, n - 1))]
+
+def fixed_distances(d, n):
+    if n == 1:
+        return [(d, ()), (d, ())]
+    d1 = d2 = d / n
+    return [(d1, fixed_distances(d - d1, n - 1)),
+            (d2, fixed_distances(d - d2, n - 1))]
 
 
 def root_distances(tree, d=0., l=None):
@@ -136,7 +144,7 @@ class PseudoEdge(object):
         self.terminal = terminal
         self.origin = InnerEnd(self)
     def add_subnode(self, leaf):
-        self.subnode = Node(self, leaf)
+        self.subnode = Node(self, leaf, maxP=self.parentNode.maxP)
 
 class ClosestSeq(object):
     def __init__(self, seqID, d):
@@ -169,7 +177,7 @@ class InnerEnd(object):
 
 class Node(object):
     def __init__(self, parentEdge, leaf, leaf2=None, leaf3=None,
-                 dd=None, maxP=1e-10):
+                 dd=None, maxP=1e-3):
         self.maxP = maxP
         if dd is None:
             dd = parentEdge.parentNode.dd
@@ -203,20 +211,45 @@ class Node(object):
         l = [quartet[j] for j in range(3) if j != i] \
             + [quartet[i], seqID]
         p = quartet_p_value(l, self.dd)
-        print p, l
+        #print p, l
+        if p > self.maxP: # ambiguous, so give up
+            #print 'FAIL', join
+            return 0
         try:
             subnode = self.edges[i].subnode
         except AttributeError:
             self.edges[i].add_subnode(seqID)
+            #print 'SUCCESS'
+            return 1
         else: # recurse to subtree
-            subnode.add_seq(seqID)
+            return subnode.add_seq(seqID)
 
-def build_tree(seqs):
+def build_tree(seqs, **kwargs):
     dd = DistanceDict(seqs)
     ids = range(1, len(seqs) - 1)
     random.shuffle(ids)
-    root = Node(None, ids[0], 0, len(seqs) - 1, dd)
+    root = Node(None, ids[0], 0, len(seqs) - 1, dd, **kwargs)
+    n = 3
     for seqID in ids[1:]:
-        root.add_seq(seqID)
+        n += root.add_seq(seqID)
+    print 'tree size:', n
     return root
 
+def run_test(n, d=0.3, length=10000):
+    dtree = fixed_distances(d, n)
+    stree = random_tree(dtree, length)
+    leaves = get_leaves(stree)
+    total = len(leaves)
+    t = time.time()
+    root = build_tree(leaves, maxP=.05)
+    return total, time.time() - t
+
+def test_range(r, **kwargs):
+    sizes, times = [],[]
+    for n in r:
+        c,t = run_test(n, **kwargs)
+        sizes.append(c)
+        times.append(t)
+    return sizes, times
+
+        
