@@ -45,8 +45,8 @@ def print_indent(tree, indent=''):
 def random_distances(d, n):
     if n == 1:
         return [(d, ()), (d, ())]
-    d1 = random.random() * d
-    d2 = random.random() * d
+    d1 = random.random() * d * 2. / n
+    d2 = random.random() * d * 2. / n
     return [(d1, random_distances(d - d1, n - 1)),
             (d2, random_distances(d - d2, n - 1))]
 
