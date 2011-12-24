@@ -233,7 +233,7 @@ def build_tree(seqs, **kwargs):
     for seqID in ids[1:]:
         n += root.add_seq(seqID)
     print 'tree size:', n
-    return root
+    return root, n
 
 def run_test(n, d=0.3, length=10000):
     dtree = fixed_distances(d, n)
@@ -241,15 +241,17 @@ def run_test(n, d=0.3, length=10000):
     leaves = get_leaves(stree)
     total = len(leaves)
     t = time.time()
-    root = build_tree(leaves, maxP=.05)
-    return total, time.time() - t
+    root, nseq = build_tree(leaves, maxP=.05)
+    return total, time.time() - t, len(root.dd), nseq
 
 def test_range(r, **kwargs):
-    sizes, times = [],[]
+    sizes, times, distances, nseqs = [],[],[],[]
     for n in r:
-        c,t = run_test(n, **kwargs)
+        c,t,nd,ns = run_test(n, **kwargs)
         sizes.append(c)
         times.append(t)
-    return sizes, times
+        distances.append(nd)
+        nseqs.append(ns)
+    return sizes, times, distances, nseqs
 
         
