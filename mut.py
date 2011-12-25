@@ -132,11 +132,20 @@ def calc_quartet(q, dd):
     l.sort()
     return l
 
-def quartet_p_value(q, dd, h=0.75):
+def quartet_p_value1(q, dd, h=0.75):
     d = (dd[q[0], q[1]] + dd[q[2], q[3]] + dd[q[0], q[2]] - dd[q[1], q[3]]) / 2.
     f = h * (1. - exp(-d / h))
     pmf = stats.binom(len(dd.seqs[q[0]]), f)
     return pmf.sf(dd.get_count(q[0], q[2]) - 1)
+
+def quartet_p_value(q, dd, h=0.75):
+    'use both non-partners mutation counts to calculate combined p-value'
+    p1 = quartet_p_value1(q, dd, h)
+    p2 = quartet_p_value1((q[0], q[1], q[3], q[2]), dd, h)
+    p = p1 * p2
+    if p == 0.:
+        return p
+    return p * (1. - log(p)) # Jost integral for combining 2 p-values
 
 class PseudoEdge(object):
     def __init__(self, parentNode, terminal):
@@ -208,8 +217,8 @@ class Node(object):
         quartet = [c.seqID for c in self.closest] + [seqID]
         join = calc_quartet(quartet, self.dd)
         i = join[0][1] # find out which partner was found
-        l = [quartet[j] for j in range(3) if j != i] \
-            + [quartet[i], seqID]
+        l = [seqID, quartet[i]] \
+            + [quartet[j] for j in range(3) if j != i]
         p = quartet_p_value(l, self.dd)
         #print p, l
         if p > self.maxP: # ambiguous, so give up
