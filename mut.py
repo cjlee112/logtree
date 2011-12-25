@@ -193,14 +193,14 @@ class Node(object):
         self.dd = dd
         self.parentEdge = parentEdge
         if parentEdge is None: # model as pseudoroot
-            self.edges = (PseudoEdge(self, OuterEnd(leaf)),
+            self.edges = [PseudoEdge(self, OuterEnd(leaf)),
                           PseudoEdge(self, OuterEnd(leaf2)),
-                          PseudoEdge(self, OuterEnd(leaf3)))
+                          PseudoEdge(self, OuterEnd(leaf3))]
             self._init_edges()
             return
-        self.edges = (PseudoEdge(self, InnerEnd(parentEdge)),
+        self.edges = [PseudoEdge(self, InnerEnd(parentEdge)),
                       PseudoEdge(self, parentEdge.terminal),
-                      PseudoEdge(self, OuterEnd(leaf)))
+                      PseudoEdge(self, OuterEnd(leaf))]
         self._init_edges()
 
     def _init_edges(self):
@@ -212,26 +212,45 @@ class Node(object):
         self.closest = []
         for i,d in enumerate(pairD):
             self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2.))
+
+    def _add_edge(self, leaf, i):
+        e = PseudoEdge(self, OuterEnd(leaf))
+        seqs = [e.terminal.get_closest() for j,e in enumerate(self.edges[:3])
+                if j != i] # don't use possible pseudoneighbor
+        d = (self.dd[leaf,seqs[0]] + self.dd[leaf,seqs[1]]
+             - self.dd[seqs[0],seqs[1]]) / 2.
+        self.edges.append(e)
+        self.closest.append(ClosestSeq(leaf, d))
         
-    def add_seq(self, seqID):
-        quartet = [c.seqID for c in self.closest] + [seqID]
-        join = calc_quartet(quartet, self.dd)
-        i = join[0][1] # find out which partner was found
-        l = [seqID, quartet[i]] \
-            + [quartet[j] for j in range(3) if j != i]
-        p = quartet_p_value(l, self.dd)
+    def add_seq(self, seqID, delayedResolution=True):
+        partners = [c.seqID for c in self.closest]
+        pvals = []
+        for k,candidate in enumerate(partners[2:]):
+            quartet = partners[:2] + [candidate, seqID]
+            join = calc_quartet(quartet, self.dd)
+            i = join[0][1] # find out which partner was found
+            l = [seqID, quartet[i]] \
+                + [quartet[j] for j in range(3) if j != i]
+            if i == 2:
+                i += k
+            pvals.append((quartet_p_value(l, self.dd), i))
+        pvals.sort()
+        p, i = pvals[0]
         #print p, l
         if p > self.maxP: # ambiguous, so give up
             #print 'FAIL', join
+            if delayedResolution:
+                self._add_edge(seqID, i)
+                return 1
             return 0
         try:
             subnode = self.edges[i].subnode
         except AttributeError:
             self.edges[i].add_subnode(seqID)
-            #print 'SUCCESS'
+            print 'NEIGHBOR', seqID, partners[i], p
             return 1
         else: # recurse to subtree
-            return subnode.add_seq(seqID)
+            return subnode.add_seq(seqID, delayedResolution)
 
 def build_tree(seqs, **kwargs):
     dd = DistanceDict(seqs)
