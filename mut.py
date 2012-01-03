@@ -147,6 +147,20 @@ def quartet_p_value(q, dd, h=0.75):
         return p
     return p * (1. - log(p)) # Jost integral for combining 2 p-values
 
+def find_partner(seqID, partners, dd):
+    pvals = []
+    for k,candidate in enumerate(partners[2:]):
+        quartet = partners[:2] + [candidate, seqID]
+        join = calc_quartet(quartet, dd)
+        i = join[0][1] # find out which partner was found
+        l = [seqID, quartet[i]] \
+            + [quartet[j] for j in range(3) if j != i]
+        if i == 2:
+            i += k
+        pvals.append((quartet_p_value(l, dd), i))
+    pvals.sort()
+    return pvals
+
 class PseudoEdge(object):
     def __init__(self, parentNode, terminal):
         self.parentNode = parentNode
@@ -156,9 +170,10 @@ class PseudoEdge(object):
         self.subnode = Node(self, leaf, maxP=self.parentNode.maxP)
 
 class ClosestSeq(object):
-    def __init__(self, seqID, d):
+    def __init__(self, seqID, d, group=None):
         self.seqID = seqID
         self.d = d
+        self.group = group
     def __cmp__(self, other):
         try:
             return cmp(self.d, other.d)
@@ -170,6 +185,8 @@ class OuterEnd(object):
         self.seqID = seqID
     def get_closest(self):
         return self.seqID
+    def get_label(self):
+        return str(self.seqID)
 
 class InnerEnd(object):
     def __init__(self, parentEdge):
@@ -183,6 +200,8 @@ class InnerEnd(object):
         return l
     def get_closest(self):
         return self.get_closest2()[0].seqID
+    def get_label(self):
+        return ''
 
 class Node(object):
     def __init__(self, parentEdge, leaf, leaf2=None, leaf3=None,
@@ -211,7 +230,7 @@ class Node(object):
         sumD = sum(pairD)
         self.closest = []
         for i,d in enumerate(pairD):
-            self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2.))
+            self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2., i))
 
     def _add_edge(self, leaf, i):
         e = PseudoEdge(self, OuterEnd(leaf))
@@ -220,29 +239,25 @@ class Node(object):
         d = (self.dd[leaf,seqs[0]] + self.dd[leaf,seqs[1]]
              - self.dd[seqs[0],seqs[1]]) / 2.
         self.edges.append(e)
-        self.closest.append(ClosestSeq(leaf, d))
+        self.closest.append(ClosestSeq(leaf, d, self.closest[i].group))
         
-    def add_seq(self, seqID, delayedResolution=True):
+    def add_seq(self, seqID, delayedResolution=True, searchLevels=0):
         partners = [c.seqID for c in self.closest]
-        pvals = []
-        for k,candidate in enumerate(partners[2:]):
-            quartet = partners[:2] + [candidate, seqID]
-            join = calc_quartet(quartet, self.dd)
-            i = join[0][1] # find out which partner was found
-            l = [seqID, quartet[i]] \
-                + [quartet[j] for j in range(3) if j != i]
-            if i == 2:
-                i += k
-            pvals.append((quartet_p_value(l, self.dd), i))
-        pvals.sort()
+        pvals = find_partner(seqID, partners, self.dd)
         p, i = pvals[0]
         #print p, l
         if p > self.maxP: # ambiguous, so give up
             #print 'FAIL', join
-            if delayedResolution:
+            outgroups = [partners[j] for j in range(3) if j != i]
+            if searchLevels and hasattr(self.edges[i], 'subnode') and \
+              self.edges[i].subnode.check_neighbor(outgroups[0], outgroups[1],
+                                                   seqID, searchLevels):
+                pass
+            elif delayedResolution:
                 self._add_edge(seqID, i)
                 return 1
-            return 0
+            else:
+                return 0
         try:
             subnode = self.edges[i].subnode
         except AttributeError:
@@ -250,16 +265,29 @@ class Node(object):
             print 'NEIGHBOR', seqID, partners[i], p
             return 1
         else: # recurse to subtree
-            return subnode.add_seq(seqID, delayedResolution)
+            return subnode.add_seq(seqID, delayedResolution, searchLevels)
 
-def build_tree(seqs, **kwargs):
+    def check_neighbor(self, out1, out2, neighb, level):
+        partners = [out1, out2] + [c.seqID for c in self.closest[2:]]
+        pvals = find_partner(neighb, partners, self.dd)
+        if pvals[0][0] < self.maxP:
+            return True
+        if level > 1:
+            for e in self.edges:
+                if hasattr(e, 'subnode') \
+                   and e.subnode.check_neighbor(out1, out2, neighb, level - 1):
+                    return True
+        return False
+
+def build_tree(seqs, delayedResolution=True, searchLevels=0, **kwargs):
     dd = DistanceDict(seqs)
     ids = range(1, len(seqs) - 1)
     random.shuffle(ids)
     root = Node(None, ids[0], 0, len(seqs) - 1, dd, **kwargs)
     n = 3
     for seqID in ids[1:]:
-        n += root.add_seq(seqID)
+        n += root.add_seq(seqID, delayedResolution=delayedResolution,
+                          searchLevels=searchLevels)
     print 'tree size:', n
     return root, n
 
@@ -282,4 +310,3 @@ def test_range(r, **kwargs):
         nseqs.append(ns)
     return sizes, times, distances, nseqs
 
-        
