@@ -310,3 +310,33 @@ def test_range(r, **kwargs):
         nseqs.append(ns)
     return sizes, times, distances, nseqs
 
+def build_ete_edge(node, iedge, ori, eteNode, reorient=True):
+    if iedge == 0 and reorient:
+        ori = 1 - ori
+    edge = node.edges[iedge]
+    try:
+        subnode = edge.subnode
+    except AttributeError:
+        if ori:
+            name = edge.terminal.get_label()
+        else:
+            name = '' # can only be internal node
+        return eteNode.add_child(name=name)
+    else:
+        return build_ete_subtree(subnode, ori, eteNode)
+        
+def build_ete_subtree(node, ori, eteNode):
+    eteNode = build_ete_edge(node, 1 - ori, ori, eteNode)
+    eteEnd = build_ete_edge(node, ori, ori, eteNode)
+    for iedge in range(2, len(node.edges)):
+        build_ete_edge(node, iedge, 1, eteNode)
+    return eteEnd
+
+def build_ete_tree(node):
+    from ete2 import Tree
+    eteNode = Tree()
+    eteNode.dist = 0.
+    for iedge in range(len(node.edges)):
+        build_ete_edge(node, iedge, 1, eteNode, False)
+    return eteNode
+    
