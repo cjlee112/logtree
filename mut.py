@@ -191,15 +191,9 @@ class OuterEnd(object):
 class InnerEnd(object):
     def __init__(self, parentEdge):
         self.parentEdge = parentEdge
-    def get_closest2(self):
-        parentNode = self.parentEdge.parentNode
-        i = parentNode.edges.index(self.parentEdge) # find this edge
-        igroup = parentNode.closest[i].group
-        l = [c for c in parentNode.closest if c.group != igroup]
-        l.sort()
-        return l
     def get_closest(self):
-        return self.get_closest2()[0].seqID
+        parentNode = self.parentEdge.parentNode
+        return parentNode.get_closest(self.parentEdge)[0].seqID
     def get_label(self):
         return ''
 
@@ -231,6 +225,13 @@ class Node(object):
         self.closest = []
         for i,d in enumerate(pairD):
             self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2., i))
+
+    def get_closest(self, edge):
+        i = self.edges.index(edge) # find this edge
+        igroup = self.closest[i].group
+        l = [c for c in self.closest if c.group != igroup]
+        l.sort()
+        return l
 
     def _add_edge(self, leaf, igroup):
         seqs = [e.terminal.get_closest() for j,e in enumerate(self.edges[:3])
