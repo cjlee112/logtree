@@ -147,16 +147,23 @@ def quartet_p_value(q, dd, h=0.75):
         return p
     return p * (1. - log(p)) # Jost integral for combining 2 p-values
 
-def find_partner(seqID, partners, dd):
+def gen_partners(edgeGroup):
+    yield (edgeGroup[0][0], edgeGroup[1][0], edgeGroup[2][0])
+    l = [0, 0, 0]
+    for i in range(3):
+        for j in range(1, len(edgeGroup[i])):
+            l[i] = j
+            yield (edgeGroup[0][l[0]], edgeGroup[1][l[1]], edgeGroup[2][l[2]])
+        l[i] = 0 # reset to default
+
+def find_partner(seqID, edgeGroup, dd):
     pvals = []
-    for k,candidate in enumerate(partners[2:]):
-        quartet = partners[:2] + [candidate, seqID]
+    for partners in gen_partners(edgeGroup):
+        quartet = [c.seqID for c in partners] + [seqID]
         join = calc_quartet(quartet, dd)
         i = join[0][1] # find out which partner was found
         l = [seqID, quartet[i]] + exclude_one(quartet[:3], i)
-        if i == 2:
-            i += k
-        pvals.append((quartet_p_value(l, dd), i))
+        pvals.append((quartet_p_value(l, dd), partners[i]))
     pvals.sort()
     return pvals
 
@@ -173,8 +180,10 @@ class PseudoEdge(object):
         self.subnode = Node(self, leaf, maxP=self.parentNode.maxP)
 
 class ClosestSeq(object):
-    def __init__(self, seqID, d, group=None):
+    def __init__(self, seqID, edge, d, group):
         self.seqID = seqID
+        self.edge = edge
+        edge.cs = self
         self.d = d
         self.group = group
     def __cmp__(self, other):
@@ -212,68 +221,62 @@ class Node(object):
         self.dd = dd
         self.parentEdge = parentEdge
         if parentEdge is None: # model as pseudoroot
-            self.edges = [PseudoEdge(self, OuterEnd(leaf)),
-                          PseudoEdge(self, OuterEnd(leaf2)),
-                          PseudoEdge(self, OuterEnd(leaf3))]
+            edges = [PseudoEdge(self, OuterEnd(leaf)),
+                     PseudoEdge(self, OuterEnd(leaf2)),
+                     PseudoEdge(self, OuterEnd(leaf3))]
         else: # new node splits parentEdge, with leaf attached
-            self.edges = [PseudoEdge(self, InnerEnd(parentEdge)),
-                          PseudoEdge(self, parentEdge.terminal),
-                          PseudoEdge(self, OuterEnd(leaf))]
-        self._init_edges()
+            edges = [PseudoEdge(self, InnerEnd(parentEdge)),
+                     PseudoEdge(self, parentEdge.terminal),
+                     PseudoEdge(self, OuterEnd(leaf))]
+        self._init_edges(edges)
 
-    def _init_edges(self):
-        seqs = [e.terminal.get_closest() for e in self.edges]
+    def _init_edges(self, edges):
+        seqs = [e.terminal.get_closest() for e in edges]
         pairD = (self.dd[seqs[1],seqs[2]],
                  self.dd[seqs[0],seqs[2]],
                  self.dd[seqs[0],seqs[1]])
         sumD = sum(pairD)
-        self.closest = []
+        self.closest = ([], [], [])
         for i,d in enumerate(pairD):
-            self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2., i))
+            self.closest[i].append(ClosestSeq(seqs[i], edges[i],
+                                              (sumD - 2. * d) / 2., i))
 
     def get_closest(self, igroup=None, edge=None):
         if igroup is None:
-            i = self.edges.index(edge) # find this edge
-            igroup = self.closest[i].group
-        l = ([], [], [])
-        for c in self.closest: # partition into groups
-            l[c.group].append(c)
-        l = exclude_one(l, igroup) # exclude this group
-        l[0].sort() # find closest in each group
-        l[1].sort()
+            igroup = edge.cs.group
+        l = exclude_one(self.closest, igroup) # exclude this group
         return (l[0][0], l[1][0])
 
     def _add_edge(self, leaf, igroup):
+        print '+', leaf, '@', [l[0].seqID for l in self.closest]
         seqs = [c.seqID for c in self.get_closest(igroup)]
         d = (self.dd[leaf,seqs[0]] + self.dd[leaf,seqs[1]]
              - self.dd[seqs[0],seqs[1]]) / 2.
         e = PseudoEdge(self, OuterEnd(leaf))
-        self.edges.append(e)
-        self.closest.append(ClosestSeq(leaf, d, igroup))
-        print '+', leaf, '@', [c.seqID for c in self.closest[:3]]
+        self.closest[igroup].append(ClosestSeq(leaf, e, d, igroup))
+        self.closest[igroup].sort()
         
     def add_seq(self, seqID, delayedResolution=True, searchLevels=0):
-        partners = [c.seqID for c in self.closest]
-        pvals = find_partner(seqID, partners, self.dd)
-        p, i = pvals[0]
+        pvals = find_partner(seqID, self.closest, self.dd)
+        p, c = pvals[0]
         #print p, l
         if p > self.maxP: # ambiguous, so give up
             #print 'FAIL', join
-            outgroups = [partners[j] for j in range(3) if j != i]
+            # outgroups = [partners[j] for j in range(3) if j != i]
             if searchLevels and hasattr(self.edges[i], 'subnode') and \
               self.edges[i].subnode.check_neighbor(outgroups[0], outgroups[1],
                                                    seqID, searchLevels):
                 pass
             elif delayedResolution:
-                self._add_edge(seqID, self.closest[i].group)
+                self._add_edge(seqID, c.group)
                 return 1
             else:
                 return 0
         try:
-            subnode = self.edges[i].subnode
+            subnode = c.edge.subnode
         except AttributeError:
-            self.edges[i].add_subnode(seqID)
-            print 'NEIGHBOR', seqID, partners[i], p
+            c.edge.add_subnode(seqID)
+            print 'NEIGHBOR', seqID, c.seqID, p
             return 1
         else: # recurse to subtree
             return subnode.add_seq(seqID, delayedResolution, searchLevels)
@@ -368,10 +371,9 @@ def test_range(r, **kwargs):
         nseqs.append(ns)
     return sizes, times, distances, nseqs
 
-def build_ete_edge(node, iedge, ori, eteNode, reorient=True):
-    if iedge == 0 and reorient:
+def build_ete_edge(node, edge, ori, eteNode, reorient=False):
+    if reorient:
         ori = 1 - ori
-    edge = node.edges[iedge]
     try:
         subnode = edge.subnode
     except AttributeError:
@@ -384,17 +386,22 @@ def build_ete_edge(node, iedge, ori, eteNode, reorient=True):
         return build_ete_subtree(subnode, ori, eteNode)
         
 def build_ete_subtree(node, ori, eteNode):
-    eteNode = build_ete_edge(node, 1 - ori, ori, eteNode)
-    eteEnd = build_ete_edge(node, ori, ori, eteNode)
-    for iedge in range(2, len(node.edges)):
-        build_ete_edge(node, iedge, 1, eteNode)
+    eteNode = build_ete_edge(node, node.closest[1 -  ori][0].edge,
+                             ori, eteNode, ori == 1)
+    eteEnd = build_ete_edge(node, node.closest[ori][0].edge,
+                            ori, eteNode, ori == 0)
+    build_ete_edge(node, node.closest[2][0].edge, 1, eteNode)
+    for i in range(3):
+        for j in range(1, len(node.closest[i])):
+            build_ete_edge(node, node.closest[i][j].edge, 1, eteNode)
     return eteEnd
 
 def build_ete_tree(node):
     from ete2 import Tree
     eteNode = Tree()
     eteNode.dist = 0.
-    for iedge in range(len(node.edges)):
-        build_ete_edge(node, iedge, 1, eteNode, False)
+    for i in range(3):
+        for j in range(len(node.closest[i])):
+            build_ete_edge(node, node.closest[i][j].edge, 1, eteNode)
     return eteNode
     
