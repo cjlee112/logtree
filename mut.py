@@ -153,13 +153,16 @@ def find_partner(seqID, partners, dd):
         quartet = partners[:2] + [candidate, seqID]
         join = calc_quartet(quartet, dd)
         i = join[0][1] # find out which partner was found
-        l = [seqID, quartet[i]] \
-            + [quartet[j] for j in range(3) if j != i]
+        l = [seqID, quartet[i]] + exclude_one(quartet[:3], i)
         if i == 2:
             i += k
         pvals.append((quartet_p_value(l, dd), i))
     pvals.sort()
     return pvals
+
+def exclude_one(l, i):
+    'return list without item i'
+    return l[:i] + l[i + 1:]
 
 class PseudoEdge(object):
     def __init__(self, parentNode, terminal):
@@ -192,8 +195,11 @@ class InnerEnd(object):
     def __init__(self, parentEdge):
         self.parentEdge = parentEdge
     def get_closest(self):
-        parentNode = self.parentEdge.parentNode
-        return parentNode.get_closest(self.parentEdge)[0].seqID
+        l = self.parentEdge.parentNode.get_closest(edge=self.parentEdge)
+        if l[0].d < l[1].d:
+            return l[0].seqID
+        else:
+            return l[1].seqID
     def get_label(self):
         return ''
 
@@ -209,11 +215,10 @@ class Node(object):
             self.edges = [PseudoEdge(self, OuterEnd(leaf)),
                           PseudoEdge(self, OuterEnd(leaf2)),
                           PseudoEdge(self, OuterEnd(leaf3))]
-            self._init_edges()
-            return
-        self.edges = [PseudoEdge(self, InnerEnd(parentEdge)),
-                      PseudoEdge(self, parentEdge.terminal),
-                      PseudoEdge(self, OuterEnd(leaf))]
+        else: # new node splits parentEdge, with leaf attached
+            self.edges = [PseudoEdge(self, InnerEnd(parentEdge)),
+                          PseudoEdge(self, parentEdge.terminal),
+                          PseudoEdge(self, OuterEnd(leaf))]
         self._init_edges()
 
     def _init_edges(self):
@@ -226,16 +231,20 @@ class Node(object):
         for i,d in enumerate(pairD):
             self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2., i))
 
-    def get_closest(self, edge):
-        i = self.edges.index(edge) # find this edge
-        igroup = self.closest[i].group
-        l = [c for c in self.closest if c.group != igroup]
-        l.sort()
-        return l
+    def get_closest(self, igroup=None, edge=None):
+        if igroup is None:
+            i = self.edges.index(edge) # find this edge
+            igroup = self.closest[i].group
+        l = ([], [], [])
+        for c in self.closest: # partition into groups
+            l[c.group].append(c)
+        l = exclude_one(l, igroup) # exclude this group
+        l[0].sort() # find closest in each group
+        l[1].sort()
+        return (l[0][0], l[1][0])
 
     def _add_edge(self, leaf, igroup):
-        seqs = [e.terminal.get_closest() for j,e in enumerate(self.edges[:3])
-                if j != igroup] # don't use possible pseudoneighbor
+        seqs = [c.seqID for c in self.get_closest(igroup)]
         d = (self.dd[leaf,seqs[0]] + self.dd[leaf,seqs[1]]
              - self.dd[seqs[0],seqs[1]]) / 2.
         e = PseudoEdge(self, OuterEnd(leaf))
@@ -322,10 +331,16 @@ class Node(object):
         pad = '\n' + '  ' * n
         return pad.join(l)
 
-def build_tree(seqs, delayedResolution=True, searchLevels=0, **kwargs):
-    dd = DistanceDict(seqs)
+def random_order(seqs):
     ids = range(1, len(seqs) - 1)
     random.shuffle(ids)
+    return ids
+
+def build_tree(seqs, delayedResolution=True, searchLevels=0,
+               ids=None, **kwargs):
+    dd = DistanceDict(seqs)
+    if ids is None:
+        ids = random_order(seqs)
     root = Node(None, ids[0], 0, len(seqs) - 1, dd, **kwargs)
     n = 3
     for seqID in ids[1:]:
