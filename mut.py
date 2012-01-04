@@ -232,14 +232,15 @@ class Node(object):
         for i,d in enumerate(pairD):
             self.closest.append(ClosestSeq(seqs[i], (sumD - 2. * d) / 2., i))
 
-    def _add_edge(self, leaf, i):
-        e = PseudoEdge(self, OuterEnd(leaf))
+    def _add_edge(self, leaf, igroup):
         seqs = [e.terminal.get_closest() for j,e in enumerate(self.edges[:3])
-                if j != i] # don't use possible pseudoneighbor
+                if j != igroup] # don't use possible pseudoneighbor
         d = (self.dd[leaf,seqs[0]] + self.dd[leaf,seqs[1]]
              - self.dd[seqs[0],seqs[1]]) / 2.
+        e = PseudoEdge(self, OuterEnd(leaf))
         self.edges.append(e)
-        self.closest.append(ClosestSeq(leaf, d, self.closest[i].group))
+        self.closest.append(ClosestSeq(leaf, d, igroup))
+        print '+', leaf, '@', [c.seqID for c in self.closest[:3]]
         
     def add_seq(self, seqID, delayedResolution=True, searchLevels=0):
         partners = [c.seqID for c in self.closest]
@@ -254,7 +255,7 @@ class Node(object):
                                                    seqID, searchLevels):
                 pass
             elif delayedResolution:
-                self._add_edge(seqID, i)
+                self._add_edge(seqID, self.closest[i].group)
                 return 1
             else:
                 return 0
@@ -278,6 +279,7 @@ class Node(object):
                    and e.subnode.check_neighbor(out1, out2, neighb, level - 1):
                     return True
         return False
+
 
 def build_tree(seqs, delayedResolution=True, searchLevels=0, **kwargs):
     dd = DistanceDict(seqs)
