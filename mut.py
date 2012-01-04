@@ -192,10 +192,10 @@ class InnerEnd(object):
     def __init__(self, parentEdge):
         self.parentEdge = parentEdge
     def get_closest2(self):
-        l = []
-        for i,e in enumerate(self.parentEdge.parentNode.edges):
-            if e is not self.parentEdge:
-                l.append(self.parentEdge.parentNode.closest[i])
+        parentNode = self.parentEdge.parentNode
+        i = parentNode.edges.index(self.parentEdge) # find this edge
+        igroup = parentNode.closest[i].group
+        l = [c for c in parentNode.closest if c.group != igroup]
         l.sort()
         return l
     def get_closest(self):
