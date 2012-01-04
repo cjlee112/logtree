@@ -280,6 +280,46 @@ class Node(object):
                     return True
         return False
 
+    def __repr__(self):
+        return self._repr(0)
+    def _repr(self, n):
+        l = ['']
+        e = self.edges[0]
+        if self.parentEdge:
+            s = ''
+        else:
+            s = e.terminal.get_label()
+        try:
+            s += self.edges[0].subnode._repr(n + 1)
+        except AttributeError:
+            pass
+        if s:
+            l.append('_' + s)
+        e = self.edges[1]
+        if self.parentEdge:
+            s = ''
+        else:
+            s = e.terminal.get_label()
+        try:
+            s += e.subnode._repr(n + 1)
+        except AttributeError:
+            pass
+        if s:
+            l.append('__' + s)
+        for e in self.edges[2:]:
+            name = e.terminal.get_label()
+            try:
+                subnode = e.subnode
+            except AttributeError:
+                if name:
+                    l.append(name)
+            else:
+                if name:
+                    l.append(name + subnode._repr(n + 1))
+                else:
+                    l.append(subnode._repr(n + 1))
+        pad = '\n' + '  ' * n
+        return pad.join(l)
 
 def build_tree(seqs, delayedResolution=True, searchLevels=0, **kwargs):
     dd = DistanceDict(seqs)
