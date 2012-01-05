@@ -192,10 +192,11 @@ def exclude_one(l, i):
     return l[:i] + l[i + 1:]
 
 class PseudoEdge(object):
-    def __init__(self, parentNode, terminal):
+    def __init__(self, parentNode, terminal, order=2):
         self.parentNode = parentNode
         self.terminal = terminal
         self.origin = InnerEnd(self)
+        self.order = order
     def add_subnode(self, leaf):
         self.subnode = Node(self, leaf, maxP=self.parentNode.maxP)
 
@@ -245,8 +246,8 @@ class Node(object):
                      PseudoEdge(self, OuterEnd(leaf2)),
                      PseudoEdge(self, OuterEnd(leaf3))]
         else: # new node splits parentEdge, with leaf attached
-            edges = [PseudoEdge(self, InnerEnd(parentEdge)),
-                     PseudoEdge(self, parentEdge.terminal),
+            edges = [PseudoEdge(self, InnerEnd(parentEdge), 0),
+                     PseudoEdge(self, parentEdge.terminal, 1),
                      PseudoEdge(self, OuterEnd(leaf))]
         self._init_edges(edges)
 
@@ -391,29 +392,25 @@ def test_range(r, **kwargs):
         nseqs.append(ns)
     return sizes, times, distances, nseqs
 
-def build_ete_edge(node, edge, ori, eteNode, reorient=False):
-    if reorient:
-        ori = 1 - ori
+def build_ete_edge(node, edge, ori, eteNode):
     try:
         subnode = edge.subnode
     except AttributeError:
-        if ori:
-            name = edge.terminal.get_label()
-        else:
-            name = '' # can only be internal node
+        name = edge.terminal.get_label()
         return eteNode.add_child(name=name)
     else:
         return build_ete_subtree(subnode, ori, eteNode)
         
 def build_ete_subtree(node, ori, eteNode):
-    eteNode = build_ete_edge(node, node.closest[1 -  ori][0].edge,
-                             ori, eteNode, ori == 1)
-    eteEnd = build_ete_edge(node, node.closest[ori][0].edge,
-                            ori, eteNode, ori == 0)
-    build_ete_edge(node, node.closest[2][0].edge, 1, eteNode)
-    for i in range(3):
-        for j in range(1, len(node.closest[i])):
-            build_ete_edge(node, node.closest[i][j].edge, 1, eteNode)
+    edges = []
+    for l in node.closest:
+        for c in l:
+            edges.append(c.edge)
+    edges.sort(lambda x,y:cmp(x.order, y.order))
+    eteNode = build_ete_edge(node, edges[1 -  ori], 0, eteNode)
+    eteEnd = build_ete_edge(node, edges[ori], 1, eteNode)
+    for e in edges[2:]:
+        build_ete_edge(node, e, 1, eteNode)
     return eteEnd
 
 def build_ete_tree(node):
