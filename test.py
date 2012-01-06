@@ -53,7 +53,7 @@ class Monitor(object):
         return fpr, tpr
 
 def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
-              ylabel='cumulative error probability',
+              ylabel='FDR',
               **kwargs):
     if x is None:
         monitor = Monitor(**kwargs)
@@ -62,4 +62,42 @@ def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
     pyplot.xlim(xmin=xmin)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
+
+
     
+def count_neighbors(root):
+    tree = mut.build_ete_tree(root)
+    return count_tree_neighbors(tree)
+
+def count_tree_neighbors(tree):
+    if tree.is_leaf():
+        seqID = int(tree.name)
+        return {seqID | 1:0}
+    d = {}
+    for c in tree.get_children():
+        for k,v in count_tree_neighbors(c).items():
+            try:
+                d[k] = abs(d[k] + v) # found neighbor, so store vertex count
+            except KeyError:
+                if v > 0: # already found, so just copy
+                    d[k] = v
+                else: # not yet found neighbor, so count vertex
+                    d[k] = v - 1
+    return d
+
+def count_children(tree):
+    l = [len(c.get_children()) for c in tree.iter_descendants()
+         if not c.is_leaf()]
+    l.append(len(tree.get_children()) - 1)
+    return l
+
+
+def analyze_neighbors(nrun=100, n=6, length=200, maxP=.01, **kwargs):
+    naybs = []
+    degrees = []
+    for i in range(nrun):
+        root, nseq = mut.run_test(n, length=length, maxP=maxP, **kwargs)
+        tree = mut.build_ete_tree(root)
+        naybs += count_tree_neighbors(tree).values()
+        degrees += count_children(tree)
+    return naybs, degrees

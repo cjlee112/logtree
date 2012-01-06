@@ -378,19 +378,27 @@ def build_tree(seqs, delayedResolution=True, searchLevels=0,
     print 'tree size:', n
     return root, n
 
-def run_test(n, d=0.3, length=10000, maxP=0.05, **kwargs):
+def get_test_seqs(n, d=0.3, length=10000):
     dtree = fixed_distances(d, n)
     stree = random_tree(dtree, length)
     leaves = get_leaves(stree)
+    return leaves
+
+def run_test(n, d=0.3, length=10000, maxP=0.05, **kwargs):
+    leaves = get_test_seqs(n, d, length)
+    return build_tree(leaves, maxP=maxP, **kwargs)
+
+def time_test(n, d=0.3, length=10000, **kwargs):
+    leaves = get_test_seqs(n, d, length)
     total = len(leaves)
     t = time.time()
-    root, nseq = build_tree(leaves, maxP=maxP, **kwargs)
+    root, nseq = build_tree(leaves, **kwargs)
     return total, time.time() - t, len(root.dd), nseq
 
 def test_range(r, **kwargs):
     sizes, times, distances, nseqs = [],[],[],[]
     for n in r:
-        c,t,nd,ns = run_test(n, **kwargs)
+        c,t,nd,ns = time_test(n, **kwargs)
         sizes.append(c)
         times.append(t)
         distances.append(nd)
