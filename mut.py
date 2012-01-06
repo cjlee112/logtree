@@ -159,11 +159,11 @@ def sample_dist(b, n, h=0.75):
 def quartet_p_value2(q, dd, n=10, h=0.75):
     'compute p-value using sampling on distance posteriors'
     b1 = get_beta_dist(q[0], q[1], dd)
-    b2 = get_beta_dist(q[2], q[3], dd)
-    b3 = get_beta_dist(q[0], q[2], dd)
-    b4 = get_beta_dist(q[1], q[3], dd)
-    d2, d3, d4 = sample_dist(b2, n), sample_dist(b3, n), sample_dist(b4, n) 
-    d1 = d3 + d4 - d2
+    b = (get_beta_dist(q[2], q[3], dd),
+         get_beta_dist(q[0], q[2], dd),
+         get_beta_dist(q[1], q[3], dd))
+    d = [sample_dist(rv, n) for rv in b]
+    d1 = d[1] + d[2] - d[0]
     f1 = h * (1. - numpy.exp(-d1 / h))
     return exp(numpy.log(b1.sf(f1)).mean())
 
@@ -183,7 +183,8 @@ def find_partner(seqID, edgeGroup, dd):
         join = calc_quartet(quartet, dd)
         i = join[0][1] # find out which partner was found
         l = [seqID, quartet[i]] + exclude_one(quartet[:3], i)
-        pvals.append((quartet_p_value2(l, dd), partners[i]))
+        p = quartet_p_value2(l, dd)
+        pvals.append((p, partners[i]))
     pvals.sort()
     return pvals
 
@@ -277,8 +278,9 @@ class Node(object):
         self.closest[igroup].append(ClosestSeq(leaf, e, d, igroup))
         self.closest[igroup].sort()
         
-    def add_seq(self, seqID, delayedResolution=True, searchLevels=0):
-        pvals = find_partner(seqID, self.closest, self.dd)
+    def add_seq(self, seqID, delayedResolution=True, searchLevels=0,
+                searchFunc=find_partner):
+        pvals = searchFunc(seqID, self.closest, self.dd)
         p, c = pvals[0]
         #print p, l
         if p > self.maxP: # ambiguous, so give up
@@ -300,7 +302,8 @@ class Node(object):
             print 'NEIGHBOR', seqID, c.seqID, p
             return 1
         else: # recurse to subtree
-            return subnode.add_seq(seqID, delayedResolution, searchLevels)
+            return subnode.add_seq(seqID, delayedResolution, searchLevels,
+                                   searchFunc)
 
     def check_neighbor(self, out1, out2, neighb, level):
         partners = [out1, out2] + [c.seqID for c in self.closest[2:]]
@@ -361,7 +364,7 @@ def random_order(seqs):
     return ids
 
 def build_tree(seqs, delayedResolution=True, searchLevels=0,
-               ids=None, **kwargs):
+               ids=None, searchFunc=find_partner, **kwargs):
     dd = DistanceDict(seqs)
     if ids is None:
         ids = random_order(seqs)
@@ -369,17 +372,17 @@ def build_tree(seqs, delayedResolution=True, searchLevels=0,
     n = 3
     for seqID in ids[1:]:
         n += root.add_seq(seqID, delayedResolution=delayedResolution,
-                          searchLevels=searchLevels)
+                          searchLevels=searchLevels, searchFunc=searchFunc)
     print 'tree size:', n
     return root, n
 
-def run_test(n, d=0.3, length=10000):
+def run_test(n, d=0.3, length=10000, maxP=0.05, **kwargs):
     dtree = fixed_distances(d, n)
     stree = random_tree(dtree, length)
     leaves = get_leaves(stree)
     total = len(leaves)
     t = time.time()
-    root, nseq = build_tree(leaves, maxP=.05)
+    root, nseq = build_tree(leaves, maxP=maxP, **kwargs)
     return total, time.time() - t, len(root.dd), nseq
 
 def test_range(r, **kwargs):
