@@ -1,5 +1,6 @@
 from matplotlib import pyplot
 import mut
+import numpy
 
 def is_neighbor(seqID, candidates):
     match = [seqID ^ x for x in candidates]
@@ -10,9 +11,15 @@ def is_neighbor(seqID, candidates):
 
 
 class Monitor(object):
-    def __init__(self, n=10):
+    def __init__(self, nrun=100, n=6, length=200, maxP=.01,
+                 nsample=100, scoreFunc=mut.quartet_p_value2, **kwargs):
         self.p_data = []
-        self.n = n
+        self.nsample = nsample
+        self.scoreFunc = scoreFunc
+        for i in range(nrun):
+            mut.run_test(n, length=length, maxP=maxP, searchFunc=self, **kwargs)
+        self.p_data.sort()
+
     def __call__(self, seqID, edgeGroup, dd):
         pvals = []
         for partners in mut.gen_partners(edgeGroup):
@@ -20,14 +27,13 @@ class Monitor(object):
             join = mut.calc_quartet(quartet, dd)
             i = join[0][1] # find out which partner was found
             l = [seqID, quartet[i]] + mut.exclude_one(quartet[:3], i)
-            p = mut.quartet_p_value2(l, dd, self.n)
+            p = self.scoreFunc(l, dd, self.nsample)
             self.p_data.append((p, is_neighbor(seqID, l[1:])))
             pvals.append((p, partners[i]))
         pvals.sort()
         return pvals
 
     def analyze(self):
-        self.p_data.sort()
         m = 0
         x, y = [], []
         for n,t in enumerate(self.p_data):
@@ -37,18 +43,23 @@ class Monitor(object):
             x.append(t[0])
         return x, y
 
-def analyze_errors(nrun=10, n=6, length=200, maxP=.01, nsample=10, **kwargs):
-    monitor = Monitor(nsample)
-    for i in range(nrun):
-        mut.run_test(n, length=length, maxP=maxP, searchFunc=monitor, **kwargs)
-    return monitor.analyze()
+    def roc(self):
+        a = numpy.array([t[1] for t in self.p_data], dtype=int).cumsum()
+        positives = a[-1]
+        negatives = len(self.p_data) - positives
+        tpr = a / float(positives)
+        b = numpy.arange(len(self.p_data)) + 1 - a
+        fpr = b / float(negatives)
+        return fpr, tpr
 
-def error_fig(x=None, y=None, xlabel='p-value',
+def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
               ylabel='cumulative error probability',
               **kwargs):
     if x is None:
-        x, y = analyze_errors(**kwargs)
-    pyplot.semilogx(x, y)
+        monitor = Monitor(**kwargs)
+        x, y = monitor.analyze()
+    pyplot.loglog(x, y)
+    pyplot.xlim(xmin=xmin)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
     

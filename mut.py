@@ -161,9 +161,11 @@ def quartet_p_value2(q, dd, n=10, h=0.75):
     b1 = get_beta_dist(q[0], q[1], dd)
     b = (get_beta_dist(q[2], q[3], dd),
          get_beta_dist(q[0], q[2], dd),
-         get_beta_dist(q[1], q[3], dd))
+         get_beta_dist(q[1], q[3], dd),
+         get_beta_dist(q[0], q[3], dd),
+         get_beta_dist(q[1], q[2], dd))
     d = [sample_dist(rv, n) for rv in b]
-    d1 = d[1] + d[2] - d[0]
+    d1 = (d[1] + d[2] + d[3] + d[4]) / 2. - d[0]
     f1 = h * (1. - numpy.exp(-d1 / h))
     return exp(numpy.log(b1.sf(f1)).mean())
 
