@@ -52,16 +52,6 @@ class Monitor(object):
         fpr = b / float(negatives)
         return fpr, tpr
 
-def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
-              ylabel='FDR',
-              **kwargs):
-    if x is None:
-        monitor = Monitor(**kwargs)
-        x, y = monitor.analyze()
-    pyplot.loglog(x, y)
-    pyplot.xlim(xmin=xmin)
-    pyplot.xlabel(xlabel)
-    pyplot.ylabel(ylabel)
 
 
     
@@ -92,12 +82,29 @@ def count_children(tree):
     return l
 
 
-def analyze_neighbors(nrun=100, n=6, length=200, maxP=.01, **kwargs):
+class CallWrapper(object):
+    def __init__(self, func, valName=None, *args, **kwargs):
+        self.func = func
+        self.args = args
+        self.kwargs= kwargs
+        self.valName = valName
+    def __call__(self, val):
+        if self.valName:
+            d = {self.valName:val}
+            d.update(self.kwargs)
+        else:
+            d = self.kwargs
+        return self.func(*self.args, **d)
+
+def calc_neighb_dist(n, **kwargs):
+    root, nseq = mut.run_test(n, **kwargs)
+    tree = mut.build_ete_tree(root)
+    return count_tree_neighbors(tree).values()
+
+def analyze_neighbors(nrun=100, n=6, length=200, maxP=.01, mapFunc=map,
+                      **kwargs):
     naybs = []
-    degrees = []
-    for i in range(nrun):
-        root, nseq = mut.run_test(n, length=length, maxP=maxP, **kwargs)
-        tree = mut.build_ete_tree(root)
-        naybs += count_tree_neighbors(tree).values()
-        degrees += count_children(tree)
-    return naybs, degrees
+    for l in mapFunc(CallWrapper(calc_neighb_dist, n=n, length=length,
+                                 maxP=maxP, **kwargs), range(nrun)):
+        naybs += l
+    return naybs

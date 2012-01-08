@@ -44,3 +44,86 @@ def time_fig(sizes, times, distances, nseqs):
     loglog_fig(sizes, distances, ylabel='number of distances')
     plot_total_pairs(sizes)
     
+def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
+              ylabel='FDR',
+              **kwargs):
+    if x is None:
+        monitor = Monitor(**kwargs)
+        x, y = monitor.analyze()
+    pyplot.loglog(x, y)
+    pyplot.xlim(xmin=xmin)
+    pyplot.xlabel(xlabel)
+    pyplot.ylabel(ylabel)
+
+def error_data():
+    monitor = test.Monitor(scoreFunc=mut.quartet_p_value)
+    monitor2 = test.Monitor()
+    return monitor, monitor2
+
+def roc_figure(monitor, monitor2, xlabel='FPR',
+               ylabel='TPR'):
+    fpr, tpr = monitor2.roc()
+    pyplot.plot(fpr, tpr)
+    fpr, tpr = monitor.roc()
+    pyplot.plot(fpr, tpr, color='r', linestyle=':')
+    pyplot.plot((0.,1.),(0.,1.), color='k', linestyle='--')
+    pyplot.xlabel(xlabel)
+    pyplot.ylabel(ylabel)
+
+def error_fig2(monitor, monitor2):
+    pyplot.subplot(311)
+    x, y = monitor.analyze()
+    error_fig(x, y)
+    pyplot.subplot(312)
+    x, y = monitor2.analyze()
+    error_fig(x, y)
+    pyplot.subplot(313)
+    roc_figure(monitor, monitor2)
+
+def neighbor_data(r=range(200,1001, 100), **kwargs):
+    l = []
+    for length in r:
+        naybs, degrees = test.analyze_neighbors(length=length, **kwargs)
+        l.append(sum(naybs) / float(len(naybs)))
+    return l
+
+def histogram_data(keys, naybs):
+    l = []
+    for k in keys:
+        m = []
+        for vals in naybs:
+            m.append(sum([i==k for i in vals]) / float(len(vals)))
+        l.append(m)
+    return l
+
+def calc_mean_dist(naybs):
+    return [sum(vals) / float(len(vals)) for vals in naybs]
+
+def neighb_fig1(x, dists1, dists2, xlabel='length',
+                ylabel='mean neighbor distance', xmax=1000, xmin=None):
+    if xmin is None:
+        xmin = x[0]
+    pyplot.plot(x, dists1, marker='+', color='r', linestyle='--')
+    pyplot.plot(x, dists2, marker='o', color='b')
+    pyplot.xlim(xmin=xmin, xmax=xmax)
+    pyplot.xlabel(xlabel)
+    pyplot.ylabel(ylabel)
+    
+def neighb_fig2(x, histNaive, histDR, histNDR1, histNDR2, xlabel='length',
+                ylabel='Fraction of Neighbors Matched', xmax=1000, xmin=None):
+    if xmin is None:
+        xmin = x[0]
+    pyplot.plot(x, histNaive, marker='+', color='r', linestyle='--')
+    pyplot.plot(x, histDR, marker='o', color='b')
+    pyplot.plot(x, histNDR1, marker='^', color='g', linestyle=':')
+    pyplot.plot(x, histNDR2, marker='s', color='k', linestyle='-.')
+    pyplot.xlim(xmin=xmin, xmax=xmax)
+    pyplot.xlabel(xlabel)
+    pyplot.ylabel(ylabel)
+
+def neighb_composite(x, dists1, dists2, histNaive, histDR, histNDR1, histNDR2):
+    pyplot.subplot(211)
+    neighb_fig1(x, dists1, dists2)
+    pyplot.subplot(212)
+    neighb_fig2(x, histNaive, histDR, histNDR1, histNDR2)
+    
