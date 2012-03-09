@@ -52,6 +52,25 @@ class Monitor(object):
         fpr = b / float(negatives)
         return fpr, tpr
 
+class MonitorAll(Monitor):
+    '''use this for FDR / ROC analysis on ALL possible candidates
+    (i.e. all three partition candidates are scored, rather than
+    just the single candidate predicted by calc_quartet()).'''
+    def __call__(self, seqID, edgeGroup, dd):
+        pvals = []
+        for partners in mut.gen_partners(edgeGroup):
+            quartet = [c.seqID for c in partners] + [seqID]
+            join = mut.calc_quartet(quartet, dd)
+            i = join[0][1] # find out which partner was found
+            for j in range(3): # score all 3 candidates
+                l = [seqID, quartet[j]] + mut.exclude_one(quartet[:3], j)
+                p = self.scoreFunc(l, dd, self.nsample)
+                self.p_data.append((p, is_neighbor(seqID, l[1:])))
+                if i == j:
+                    pvals.append((p, partners[i]))
+        pvals.sort()
+        return pvals
+
 
 
     
