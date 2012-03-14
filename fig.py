@@ -65,11 +65,11 @@ def error_data(mapFunc=map, **kwargs):
 
 def roc_figure(monitor, monitor2, monitor3, xlabel='FPR',
                ylabel='TPR'):
-    fpr, tpr = monitor2.roc()
+    fpr, tpr, aoc = monitor2.roc()
     pyplot.plot(fpr, tpr)
-    fpr, tpr = monitor.roc()
+    fpr, tpr, aoc = monitor.roc()
     pyplot.plot(fpr, tpr, color='r', linestyle=':')
-    fpr, tpr = monitor3.roc()
+    fpr, tpr, aoc = monitor3.roc()
     pyplot.plot(fpr, tpr, color='g', linestyle='-.')
     pyplot.plot((0.,1.),(0.,1.), color='k', linestyle='--')
     pyplot.xlabel(xlabel)

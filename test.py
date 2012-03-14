@@ -59,13 +59,16 @@ class Monitor(object):
         return x, y
 
     def roc(self):
-        a = numpy.array([t[1] for t in self.p_data], dtype=int).cumsum()
-        positives = a[-1]
-        negatives = len(self.p_data) - positives
-        tpr = a / float(positives)
-        b = numpy.arange(len(self.p_data)) + 1 - a
+        a = numpy.array([0] + [t[1] for t in self.p_data],
+                        dtype=int).cumsum() # pad with extra 0 for AOC
+        positives = a[-1] # total positives
+        negatives = len(self.p_data) - positives # total negatives
+        tpr = a[1:] / float(positives)
+        b = numpy.arange(len(self.p_data) + 1) - a
         fpr = b / float(negatives)
-        return fpr, tpr
+        dfpr = fpr[1:] - fpr[:-1] # dx for integrating AOC
+        aoc = (dfpr * tpr).sum() # integrate AOC
+        return fpr[1:], tpr, aoc
 
 class MonitorAll(MonitorRun):
     '''use this for FDR / ROC analysis on ALL possible candidates
