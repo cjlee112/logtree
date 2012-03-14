@@ -8,18 +8,16 @@ def is_neighbor(seqID, candidates):
     return (match[0] ^ m) < m
 
 
+def monitor_run(n, length, maxP, nsample, scoreFunc, **kwargs):
+    mr = MonitorRun(nsample, scoreFunc)
+    mut.run_test(n, length=length, maxP=maxP, searchFunc=mr, **kwargs)
+    return mr.p_data
 
-
-class Monitor(object):
-    def __init__(self, nrun=100, n=6, length=200, maxP=.01,
-                 nsample=100, scoreFunc=mut.quartet_p_value2, **kwargs):
+class MonitorRun(object):
+    def __init__(self, nsample, scoreFunc):
         self.p_data = []
         self.nsample = nsample
         self.scoreFunc = scoreFunc
-        for i in range(nrun):
-            mut.run_test(n, length=length, maxP=maxP, searchFunc=self, **kwargs)
-        self.p_data.sort()
-
     def __call__(self, seqID, edgeGroup, dd):
         pvals = []
         for partners in mut.gen_partners(edgeGroup):
@@ -35,6 +33,19 @@ class Monitor(object):
             pvals.append((p, partners[i]))
         pvals.sort()
         return pvals
+
+
+class Monitor(object):
+    def __init__(self, nrun=500, n=6, length=200, maxP=.01,
+                 nsample=100, scoreFunc=mut.quartet_p_value2,
+                 mapFunc=map, **kwargs):
+        self.p_data = []
+        for l in mapFunc(CallWrapper(monitor_run, n=n, length=length,
+                                     maxP=maxP, nsample=nsample,
+                                     scoreFunc=scoreFunc, **kwargs),
+                         range(nrun)):
+            self.p_data += l
+        self.p_data.sort()
 
     def analyze(self):
         m = 0
@@ -55,7 +66,7 @@ class Monitor(object):
         fpr = b / float(negatives)
         return fpr, tpr
 
-class MonitorAll(Monitor):
+class MonitorAll(MonitorRun):
     '''use this for FDR / ROC analysis on ALL possible candidates
     (i.e. all three partition candidates are scored, rather than
     just the single candidate predicted by calc_quartet()).'''
