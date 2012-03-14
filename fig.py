@@ -58,7 +58,7 @@ def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
 def error_data(mapFunc=map, **kwargs):
     monitor = test.Monitor(scoreFunc=mut.quartet_p_value_gmean,
                            nsample=None, mapFunc=mapFunc, **kwargs)
-    monitor2 = test.Monitor(mapFunc=mapFunc, **kwargs)
+    monitor2 = test.Monitor(mapFunc=mapFunc, maxP=0.0002, **kwargs)
     monitor3 = test.Monitor(scoreFunc=mut.quartet_p_value2_mean,
                             mapFunc=mapFunc, **kwargs)
     return monitor, monitor2, monitor3
