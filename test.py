@@ -8,11 +8,6 @@ def is_neighbor(seqID, candidates):
     return (match[0] ^ m) < m
 
 
-def monitor_run(n, length, maxP, nsample, scoreFunc, **kwargs):
-    mr = MonitorRun(nsample, scoreFunc)
-    mut.run_test(n, length=length, maxP=maxP, searchFunc=mr, **kwargs)
-    return mr.p_data
-
 class MonitorRun(object):
     def __init__(self, nsample, scoreFunc):
         self.p_data = []
@@ -34,6 +29,12 @@ class MonitorRun(object):
         pvals.sort()
         return pvals
 
+
+def monitor_run(n, length, maxP, nsample, scoreFunc,
+                monitorClass=MonitorRun, **kwargs):
+    mr = monitorClass(nsample, scoreFunc)
+    mut.run_test(n, length=length, maxP=maxP, searchFunc=mr, **kwargs)
+    return mr.p_data
 
 class Monitor(object):
     def __init__(self, nrun=500, n=6, length=200, maxP=.01,
