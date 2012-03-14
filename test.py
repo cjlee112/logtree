@@ -27,7 +27,10 @@ class Monitor(object):
             join = mut.calc_quartet(quartet, dd)
             i = join[0][1] # find out which partner was found
             l = [seqID, quartet[i]] + mut.exclude_one(quartet[:3], i)
-            p = self.scoreFunc(l, dd, self.nsample)
+            if self.nsample:
+                p = self.scoreFunc(l, dd, self.nsample)
+            else:
+                p = self.scoreFunc(l, dd)
             self.p_data.append((p, is_neighbor(seqID, l[1:])))
             pvals.append((p, partners[i]))
         pvals.sort()
@@ -64,7 +67,10 @@ class MonitorAll(Monitor):
             i = join[0][1] # find out which partner was found
             for j in range(3): # score all 3 candidates
                 l = [seqID, quartet[j]] + mut.exclude_one(quartet[:3], j)
-                p = self.scoreFunc(l, dd, self.nsample)
+                if self.nsample:
+                    p = self.scoreFunc(l, dd, self.nsample)
+                else:
+                    p = self.scoreFunc(l, dd)
                 self.p_data.append((p, is_neighbor(seqID, l[1:])))
                 if i == j:
                     pvals.append((p, partners[i]))

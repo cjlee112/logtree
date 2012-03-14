@@ -56,7 +56,7 @@ def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
     pyplot.ylabel(ylabel)
 
 def error_data():
-    monitor = test.Monitor(scoreFunc=mut.quartet_p_value)
+    monitor = test.Monitor(scoreFunc=mut.quartet_p_value, nsample=None)
     monitor2 = test.Monitor()
     return monitor, monitor2
 
