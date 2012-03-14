@@ -45,40 +45,51 @@ def time_fig(sizes, times, distances, nseqs):
     plot_total_pairs(sizes)
     
 def error_fig(x=None, y=None, xmin=1e-8, xlabel='p-value',
-              ylabel='FDR',
+              ylabel='FDR', plotargs={},
               **kwargs):
     if x is None:
         monitor = Monitor(**kwargs)
         x, y = monitor.analyze()
-    pyplot.loglog(x, y)
+    pyplot.loglog(x, y, **plotargs)
     pyplot.xlim(xmin=xmin)
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
 
-def error_data():
-    monitor = test.Monitor(scoreFunc=mut.quartet_p_value, nsample=None)
-    monitor2 = test.Monitor()
-    return monitor, monitor2
+def error_data(mapFunc=map, **kwargs):
+    monitor = test.Monitor(scoreFunc=mut.quartet_p_value_gmean,
+                           nsample=None, mapFunc=mapFunc, **kwargs)
+    monitor2 = test.Monitor(mapFunc=mapFunc, **kwargs)
+    monitor3 = test.Monitor(scoreFunc=mut.quartet_p_value2_mean,
+                            mapFunc=mapFunc, **kwargs)
+    return monitor, monitor2, monitor3
 
-def roc_figure(monitor, monitor2, xlabel='FPR',
+def roc_figure(monitor, monitor2, monitor3, xlabel='FPR',
                ylabel='TPR'):
     fpr, tpr = monitor2.roc()
     pyplot.plot(fpr, tpr)
     fpr, tpr = monitor.roc()
     pyplot.plot(fpr, tpr, color='r', linestyle=':')
+    fpr, tpr = monitor3.roc()
+    pyplot.plot(fpr, tpr, color='g', linestyle='-.')
     pyplot.plot((0.,1.),(0.,1.), color='k', linestyle='--')
     pyplot.xlabel(xlabel)
     pyplot.ylabel(ylabel)
 
-def error_fig2(monitor, monitor2):
-    pyplot.subplot(311)
+def roc_all_fig(**kwargs):
+    'ROC plot using MonitorAll data'
+    monitorA, monitor2A, monitor3A = fig.error_data(monitorClass=test.MonitorAll, **kwargs)
+    roc_figure(monitorA, monitor2A, monitor3A)
+
+def error_fig2(monitor, monitor2, monitor3):
+    pyplot.subplot(211)
     x, y = monitor.analyze()
-    error_fig(x, y)
-    pyplot.subplot(312)
+    pyplot.loglog(x, y, color='r', linestyle=':')
+    x, y = monitor3.analyze()
+    pyplot.loglog(x, y, color='g', linestyle='-.')
     x, y = monitor2.analyze()
-    error_fig(x, y)
-    pyplot.subplot(313)
-    roc_figure(monitor, monitor2)
+    error_fig(x, y, plotargs=dict(color='b'))
+    pyplot.subplot(212)
+    roc_figure(monitor, monitor2, monitor3)
 
 def neighbor_data(r=range(200,1001, 100), **kwargs):
     l = []

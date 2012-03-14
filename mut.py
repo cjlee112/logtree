@@ -1,5 +1,5 @@
 import random
-from math import exp, log
+from math import exp, log, sqrt
 from scipy import stats
 import time
 import numpy
@@ -148,6 +148,12 @@ def quartet_p_value(q, dd, h=0.75):
         return p
     return p * (1. - log(p)) # Jost integral for combining 2 p-values
 
+def quartet_p_value_gmean(q, dd, h=0.75):
+    'use both non-partners mutation counts to calculate combined p-value'
+    p1 = quartet_p_value1(q, dd, h)
+    p2 = quartet_p_value1((q[0], q[1], q[3], q[2]), dd, h)
+    return sqrt(p1 * p2)
+
 def get_beta_dist(s1, s2, dd):
     m = dd.get_count(s1, s2)
     return stats.beta(m + 1, len(dd.seqs[s1]) - m + 1)
@@ -156,7 +162,7 @@ def sample_dist(b, n, h=0.75):
     f = b.rvs(n)
     return -h * numpy.log(1. - f / h)
 
-def quartet_p_value2(q, dd, n=10, h=0.75):
+def quartet_p_value_base(q, dd, n=10, h=0.75):
     'compute p-value using sampling on distance posteriors'
     b1 = get_beta_dist(q[0], q[1], dd)
     b = (get_beta_dist(q[2], q[3], dd),
@@ -167,7 +173,18 @@ def quartet_p_value2(q, dd, n=10, h=0.75):
     d = [sample_dist(rv, n) for rv in b]
     d1 = (d[1] + d[2] + d[3] + d[4]) / 2. - d[0]
     f1 = h * (1. - numpy.exp(-d1 / h))
+    return b1, f1
+
+
+def quartet_p_value2(q, dd, n=10, h=0.75):
+    'uses geometric mean'
+    b1, f1 = quartet_p_value_base(q, dd, n, h)
     return exp(numpy.log(b1.sf(f1)).mean())
+
+def quartet_p_value2_mean(q, dd, n=10, h=0.75):
+    'uses arithmetic mean'
+    b1, f1 = quartet_p_value_base(q, dd, n, h)
+    return b1.sf(f1).mean()
 
 def gen_partners(edgeGroup):
     yield (edgeGroup[0][0], edgeGroup[1][0], edgeGroup[2][0])
