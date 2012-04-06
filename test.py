@@ -148,3 +148,40 @@ def analyze_neighbors(nrun=100, n=6, length=200, maxP=.01, mapFunc=map,
                                  maxP=maxP, **kwargs), range(nrun)):
         naybs += l
     return naybs
+
+
+def gen_random_quartets(n, nseq):
+    'generate n random quartets of ID values in range [0:nseq]'
+    import random
+    ids = range(nseq)
+    it = iter(()) # empty iterator
+    for i in range(n):
+        try:
+            t = it.next()
+            if len(t) < 4:
+                raise StopIteration
+        except StopIteration:
+            random.shuffle(ids)
+            it = iter([ids[j:j+4] for j in range(0, nseq, 4)])
+            t = it.next()
+        yield t
+
+
+def get_quartet_distances(q, dd):
+    'a dummy scoring function that just measures speed of distance calc'
+    return dd[q[0], q[1]], dd[q[2], q[3]], \
+           dd[q[0], q[2]], dd[q[1], q[3]], \
+           dd[q[0], q[3]], dd[q[1], q[2]]
+
+def score_speed(ntest, scoreFunc=mut.quartet_p_value2,
+                depth=6, d=0.3, length=200, **kwargs):
+    'measure speed of scoreFunc on random quartets'
+    import time
+    seqs = mut.get_test_seqs(depth, d, length)
+    dd = mut.DistanceDict(seqs)
+    nseq = len(seqs)
+    quartets = list(gen_random_quartets(ntest, nseq))
+    t = time.time()
+    for q in quartets:
+        p = scoreFunc(q, dd, **kwargs)
+    return (time.time() - t) / ntest
